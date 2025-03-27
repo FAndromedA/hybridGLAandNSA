@@ -11,7 +11,7 @@ class HybridConfig(PretrainedConfig):
     def __init__(
         self,
         hidden_size: int = 2048,
-        expand_k: int = 0.5,
+        expand_k: int = 1,
         expand_v: int = 1,
         hidden_ratio: Optional[int] = 4,
         intermediate_size: Optional[int] = 5504,
@@ -24,7 +24,7 @@ class HybridConfig(PretrainedConfig):
         conv_size: int = 4,
         use_output_gate: bool = True,
         clamp_min: Optional[float] = None,
-        hidden_act: str = "silu", # or 'swish'
+        hidden_act: str = "swish", # 相当于 silu 
         max_position_embeddings: int = 4096,
         elementwise_affine: Optional[bool] = True,
         norm_eps: float = 1e-6,

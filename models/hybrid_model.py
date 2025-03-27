@@ -20,7 +20,7 @@ from fla.models.gla.configuration_gla import GLAConfig
 from .hybrid_config import HybridConfig
 from fla.models.utils import Cache
 from fla.modules import FusedCrossEntropyLoss, FusedLinearCrossEntropyLoss
-from fla.modules import GatedMLP as GLAMLP
+from fla.modules import GatedMLP
 from fla.modules import RMSNorm
 
 # if TYPE_CHECKING:
@@ -68,7 +68,7 @@ class HybridBlock(nn.Module):
                 layer_idx=layer_idx
             )
         self.mlp_norm = (RMSNorm if config.fuse_norm else nn.RMSNorm)(config.hidden_size, eps=config.norm_eps)
-        self.mlp = GLAMLP(
+        self.mlp = GatedMLP(
             hidden_size=config.hidden_size,
             hidden_ratio=config.hidden_ratio,
             intermediate_size=config.intermediate_size,
@@ -163,7 +163,8 @@ class MyPreTrainedModel(PreTrainedModel):
                     raise ValueError(f"Invalid prenorm_residual_strategy: {prenorm_residual_strategy}")
 
 class HybridModel(MyPreTrainedModel):
-    def __init__(self, config: GLAConfig):
+    def __init__(self, config: HybridConfig):
+        super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
