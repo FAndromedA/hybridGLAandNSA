@@ -224,7 +224,7 @@ class HybridModel(MyPreTrainedModel):
         all_attns = () if output_attentions else None
         for layer in self.layers:
             if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
+                all_hidden_states += (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
                 hidden_states, attentions, past_key_values = self._gradient_checkpointing_func(
@@ -247,7 +247,7 @@ class HybridModel(MyPreTrainedModel):
                 )
             
             if output_attentions:
-                all_attns = all_attns + (attentions,)
+                all_attns += (attentions,)
         
         hidden_states = self.norm(hidden_states)
         
@@ -392,7 +392,7 @@ class HybridForCausalLM(MyPreTrainedModel, GenerationMixin):
             # ignore_index 是一个特殊的值，用于忽略某些特定的标签，比如padding, labels[..., 1:] 表示除了第一个标签外的所有标签
             # 这段代码的作用是：1. 去掉 `labels` 的第二维的第一个元素。2. 在第二维的末尾添加一个值为 `criterion.ignore_index` 的列。
             # 去掉序列的第一个元素（可能是特殊的起始标记）。在序列末尾添加一个特殊标记（如忽略索引），用于标记序列的结束或填充。
-            labels = torch.cat((labels[...,1:], torch.full_like(labels[:, :1], criterion.ignore_index)), 1)
+            labels = torch.cat((labels[..., 1:], torch.full_like(labels[:, :1], criterion.ignore_index)), 1)
             if fuse_linear_and_cross_entropy:
                 loss = criterion(hidden_states, labels, self.lm_head.weight, self.lm_head.bias)
             else:
@@ -400,7 +400,7 @@ class HybridForCausalLM(MyPreTrainedModel, GenerationMixin):
 
         if not return_dict:
             output = (logits,) + outputs[1:] # type(output) == Tuple, = (logits, past_key_values, hidden_states, attentions)
-            return ((loss,) + output) if loss is not None else output
+            return (loss,) + output if loss is not None else output
         
         return CausalLMOutputWithPast(
             loss=loss,

@@ -1,0 +1,30 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "python",
+            "name": "Multi-GPU Training Debug",
+            "request": "launch",
+            "module": "accelerate.commands.launch",  // 指定加速库入口
+            "args": [
+                "--multi_gpu",
+                "--num_processes=2",
+                "--gpu_ids=7,1",
+                "training/train1.py"  // 训练脚本路径
+            ],
+            "env": {
+                "NCCL_P2P_LEVEL": "SYS",
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "CUDA_VISIBLE_DEVICES": "7,1"  // 显式指定可用 GPU
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false  // 允许调试第三方库
+        }
+    ]
+      
+}
