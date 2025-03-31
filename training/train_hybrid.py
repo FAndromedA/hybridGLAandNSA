@@ -182,7 +182,7 @@ class TrainConfig():
         self.kl_weight = 0.1
         self.ce_weight = 1
         self.do_eval = False
-        self.output_dir = "/root/hybridGlaAndNsa/ckpts1"
+        self.output_dir = "/root/hybridGlaAndNsa/ckpts_train_hybrid"
         self.save_steps = 5000
         self.warmup_steps = 500
         self.per_device_train_batch_size = 1
@@ -401,7 +401,7 @@ def main():
     completed_steps = 0
     starting_epoch = 0
 
-    if training_args.resume_from_checkpoint is not None:
+    if training_args.resume_from_checkpoint is not None: # 从断点继续训练
         if training_args.resume_from_checkpoint is not None or training_args.resume_from_checkpoint != "":
             accelerator.print(f"Resumed from checkpoint: {training_args.resume_from_checkpoint}")
             accelerator.load_state(training_args.resume_from_checkpoint)
