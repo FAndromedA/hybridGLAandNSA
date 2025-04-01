@@ -25,6 +25,8 @@ from alignment import (
 )
 from trl import SFTTrainer, setup_chat_format
 
+# 添加项目根目录到 sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.hybrid_config import HybridConfig
 from models.hybrid_model import HybridModel, HybridForCausalLM
 
@@ -75,6 +77,8 @@ def main():
     parser = H4ArgumentParser((ModelArguments, DataArguments, SFTDistillConfig), description="Fine-tune a model on the H4 dataset.")
     model_args, data_args, training_args = parser.parse()
     
+    print(model_args, data_args, training_args)
+
     set_seed(training_args.seed)
 
     logging.basicConfig(
@@ -89,7 +93,7 @@ def main():
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
-
+    
     logger.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
@@ -172,6 +176,7 @@ def main():
         for index in random.sample(range(len(raw_datasets["train"])), 3):
             logger.info(f"Sample {index} of the processed training set:\n\n{raw_datasets['train'][index]['text']}")
 
+    exit(0)
     trainer = SFTTrainer(
         model=model,
         args=training_args,

@@ -23,7 +23,7 @@ def extract_assistant_reply(output_text):
 
 if __name__ == "__main__":
 
-    model_path = "/root/hybridGlaAndNsa/ckpts1" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
+    model_path = "/root/hybridGLAandNSA/ckpts1" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
     dtype = torch.bfloat16
     test_config =  AutoConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     test_model = AutoModelForCausalLM.from_pretrained(model_path, config=test_config, torch_dtype=dtype, local_files_only=True)

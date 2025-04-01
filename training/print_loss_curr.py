@@ -2,7 +2,7 @@ import re
 import matplotlib.pyplot as plt
 
 # 读取 nohup.out 文件
-with open("/root/hybridGlaAndNsa/nohup.out", "r", encoding="utf-8") as f:
+with open("/root/hybridGLAandNSA/nohup.out", "r", encoding="utf-8") as f:
     lines = f.readlines()
 
 # 正则表达式匹配 loss 值

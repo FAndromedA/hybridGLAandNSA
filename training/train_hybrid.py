@@ -178,11 +178,11 @@ def convert_llama_weights(
 
 class TrainConfig():
     def __init__(self):
-        self.train_datasets_paths = ["/root/hybridGlaAndNsa/data/ultrachat", "/root/hybridGlaAndNsa/data/UltraFeedback"]
+        self.train_datasets_paths = ["/root/hybridGLAandNSA/data/ultrachat", "/root/hybridGLAandNSA/data/UltraFeedback"]
         self.kl_weight = 0.1
         self.ce_weight = 1
         self.do_eval = False
-        self.output_dir = "/root/hybridGlaAndNsa/ckpts_train_hybrid"
+        self.output_dir = "/root/hybridGLAandNSA/ckpts_train_hybrid"
         self.save_steps = 5000
         self.warmup_steps = 500
         self.per_device_train_batch_size = 1
@@ -233,7 +233,7 @@ def main():
     # print(f"Teacher model config:\n{teacher_config}\n teacher model:\n{teacher_model}")
     # print(f"Number of teacher parameters: {teacher_num_parameters} ({sizeof_fmt(teacher_num_parameters)})")
 
-    save_path = '/root/hybridGlaAndNsa/ckpts0'
+    save_path = '/root/hybridGLAandNSA/ckpts0'
     
     student_config = HybridConfig()
     tokenizer.pad_token_id = student_config.pad_token_id
@@ -305,7 +305,7 @@ def main():
         print(f"student number of total trainable params:{total_trainable_params}({sizeof_fmt(total_trainable_params)})")
 
         
-    # train_dataset_path = "/root/hybridGlaAndNsa/data/"
+    # train_dataset_path = "/root/hybridGLAandNSA/data/"
 
     # ds1 = load_dataset("openbmb/UltraFeedback") # https://huggingface.co/datasets/openbmb/UltraFeedback
     # ds = load_dataset("stingning/ultrachat") # https://huggingface.co/datasets/stingning/ultrachat

@@ -1,5 +1,5 @@
 # Model arguments
-model_name_or_path: /root/hybridGlaAndNsa/ckpts_train_hybrid
+model_name_or_path: /root/hybridGLAandNSA/ckpts_train_hybrid
 decontaminate: true
 torch_dtype: bfloat16
 
@@ -27,7 +27,7 @@ lr_scheduler_type: cosine
 max_seq_length: 4096
 max_steps: -1
 num_train_epochs: 1
-output_dir: /root/hybridGlaAndNsa/ckpts_train_sft
+output_dir: /root/hybridGLAandNSA/ckpts_train_sft
 overwrite_output_dir: true
 per_device_eval_batch_size: 8
 per_device_train_batch_size: 8
