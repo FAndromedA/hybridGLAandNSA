@@ -1,11 +1,18 @@
 # hybridGLAandNSA
-
+/root/.cache/huggingface/accelerate/default_config.yaml
 
 train first stage with: accelerate launch --multi_gpu --num_processes=3 --gpu_ids=0,1,5 training/train_hybrid.py
 
 nohup accelerate launch --multi_gpu --num_processes=3 --gpu_ids=0,1,5 training/train_hybrid.py &
 
+finally train first stage only on 1 3090 GPU with 32 hours :
+
 CUDA_VISIBLE_DEVICES=7 setsid nohup python training/train_hybrid.py &
+
+train second stage with:
+setsid nohup accelerate launch --gpu_ids=3,0,1,2 training/train_sft.py yamls/train_sft.yaml &
+
+the nohup.out log start from line: 139795
 
 ```
 accelerate config                                                                                            

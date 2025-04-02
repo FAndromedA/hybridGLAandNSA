@@ -22,8 +22,8 @@ def extract_assistant_reply(output_text):
         return "Assistant 回复未找到"
 
 if __name__ == "__main__":
-
-    model_path = "/root/hybridGLAandNSA/ckpts1" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
+    # "/root/hybridGLAandNSA/ckpts_train_hybrid"
+    model_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-32000" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
     dtype = torch.bfloat16
     test_config =  AutoConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     test_model = AutoModelForCausalLM.from_pretrained(model_path, config=test_config, torch_dtype=dtype, local_files_only=True)
@@ -50,7 +50,9 @@ if __name__ == "__main__":
             inputs = tokenizer(user_input, return_tensors="pt").to("cuda:0")
             outputs = test_model.generate(inputs.input_ids, max_length=1024, do_sample=True)
             
-            assistant_reply = extract_assistant_reply(tokenizer.decode(outputs[0], skip_special_tokens=False))
+            decoded_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
+            # print(decoded_text)
+            assistant_reply = extract_assistant_reply(decoded_text)
             print(f"The test model generated: {assistant_reply}")
     
     # user_input = "Hello, can you tell me a joke?"

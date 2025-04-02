@@ -72,12 +72,13 @@ class SFTDistillConfig(SFTConfig):
     )
 
 def main():
-    dist.init_process_group(backend='nccl', timeout=timedelta(seconds=3600))
+    dist.init_process_group(backend='nccl', timeout=timedelta(seconds=25000)) # tokenizer takes more than 4 hours
     
     parser = H4ArgumentParser((ModelArguments, DataArguments, SFTDistillConfig), description="Fine-tune a model on the H4 dataset.")
     model_args, data_args, training_args = parser.parse()
     
-    print(model_args, data_args, training_args)
+    training_args.packing = True
+    # print(model_args, data_args, training_args)
 
     set_seed(training_args.seed)
 
@@ -141,7 +142,8 @@ def main():
         config=HybridConfig.from_pretrained(model_args.model_name_or_path),
         **model_kwargs,
     )
-    model, tokenizer = setup_chat_format(model, tokenizer)
+    print(f"Model device: {model.device}")
+
     #####################
     # Apply chat template
     #####################
@@ -176,18 +178,18 @@ def main():
         for index in random.sample(range(len(raw_datasets["train"])), 3):
             logger.info(f"Sample {index} of the processed training set:\n\n{raw_datasets['train'][index]['text']}")
 
-    exit(0)
+
     trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        dataset_text_field="text",
-        max_seq_length=training_args.max_seq_length,
-        tokenizer=tokenizer,
-        packing=True,
+        # dataset_text_field="text", # removed by trl, you should set it in SFTConfig, and it's default value is "text"
+        # max_seq_length=training_args.max_seq_length,
+        processing_class=tokenizer,
+        # packing=True,
         peft_config=get_peft_config(model_args),
-        dataset_kwargs=training_args.dataset_kwargs,
+        # dataset_kwargs=training_args.dataset_kwargs,
     )
     
     logger.info("*** Train ***")
