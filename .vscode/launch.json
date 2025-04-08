@@ -12,16 +12,10 @@
             "module": "accelerate.commands.launch",  // 指定加速库入口
             "args": [
                 "--multi_gpu",
-                "--num_processes=2",
-                "--gpu_ids=7,1",
-                "training/train1.py"  // 训练脚本路径
+                "--gpu_ids=3,0,1,2",
+                "training/train_dpo.py",  // 训练脚本路径
+                "yamls/train_dpo.yaml"
             ],
-            "env": {
-                "NCCL_P2P_LEVEL": "SYS",
-                "OMP_NUM_THREADS": "1",
-                "MKL_NUM_THREADS": "1",
-                "CUDA_VISIBLE_DEVICES": "7,1"  // 显式指定可用 GPU
-            },
             "console": "integratedTerminal",
             "justMyCode": false  // 允许调试第三方库
         }

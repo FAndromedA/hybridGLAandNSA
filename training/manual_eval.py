@@ -10,7 +10,9 @@ from transformers import AutoModel, AutoTokenizer, AutoConfig, AutoModelForCausa
 
 import torch
 
-def extract_assistant_reply(output_text):
+def extract_assistant_reply(output_text, use_template):
+    if use_template == "0":
+        return output_text
     start_token = "<|start_header_id|>assistant<|end_header_id|>\n\n"
     end_token = "<|eot_id|>"
     
@@ -23,7 +25,7 @@ def extract_assistant_reply(output_text):
 
 if __name__ == "__main__":
     # "/root/hybridGLAandNSA/ckpts_train_hybrid"
-    model_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-32000" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
+    model_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
     dtype = torch.bfloat16
     test_config =  AutoConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     test_model = AutoModelForCausalLM.from_pretrained(model_path, config=test_config, torch_dtype=dtype, local_files_only=True)
@@ -35,6 +37,7 @@ if __name__ == "__main__":
 
     use_template = input("Do you want to use the template? (1 for yes/0 for no): ")
     while True:
+        print("============================================")
         user_input = input("Please enter your input: ")
         if user_input.lower() == "exit":
             print("Exiting the program.")
@@ -47,12 +50,16 @@ if __name__ == "__main__":
         with torch.no_grad():
             if use_template == "1":
                 user_input = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            print(f"The input to the model is: {repr(user_input)}")
+            # an example of template:
+            #<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nCutting Knowledge Date: December 2023\nToday Date: 07 Apr 2025\n\nYou are a helpful assistant named Nova, created by ZJH.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\ntell me a story<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n
+            
             inputs = tokenizer(user_input, return_tensors="pt").to("cuda:0")
             outputs = test_model.generate(inputs.input_ids, max_length=1024, do_sample=True)
             
             decoded_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
             # print(decoded_text)
-            assistant_reply = extract_assistant_reply(decoded_text)
+            assistant_reply = extract_assistant_reply(decoded_text, use_template)
             print(f"The test model generated: {assistant_reply}")
     
     # user_input = "Hello, can you tell me a joke?"

@@ -9,10 +9,15 @@ finally train first stage only on 1 3090 GPU with 32 hours :
 
 CUDA_VISIBLE_DEVICES=7 setsid nohup python training/train_hybrid.py &
 
-train second stage with:
+train the second stage with:
 setsid nohup accelerate launch --gpu_ids=3,0,1,2 training/train_sft.py yamls/train_sft.yaml &
 
 the nohup.out log start from line: 139795
+
+
+train llava with :
+
+setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_pretrain.py &
 
 ```
 accelerate config                                                                                            
