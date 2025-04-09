@@ -28,11 +28,13 @@ if __name__ == "__main__":
     model_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
     dtype = torch.bfloat16
     test_config =  AutoConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
-    test_model = AutoModelForCausalLM.from_pretrained(model_path, config=test_config, torch_dtype=dtype, local_files_only=True)
+    test_model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=dtype, local_files_only=True)
     test_model.eval()
     test_model.to("cuda:0")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     test_num_parameters = test_model.num_parameters()
+    for name, param in test_model.named_parameters():
+       print(f"{name}: {param.requires_grad}")
     print(f"The test model has {test_num_parameters} parameters.")
 
     use_template = input("Do you want to use the template? (1 for yes/0 for no): ")

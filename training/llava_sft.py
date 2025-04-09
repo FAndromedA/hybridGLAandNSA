@@ -28,31 +28,7 @@ from models.hybrid_model import HybridForCausalLM
 from models.Llava_model import HybridVisionModel
 from models.Llava_config import HybridLlavaConfig
 from dataset import VLMDataset
-
-
-def init_model(model_config: HybridLlavaConfig):
-    model = HybridVisionModel(model_config)
-    text_model_name_or_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587"
-    model.text_model = AutoModelForCausalLM.from_pretrained(text_model_name_or_path)
-    tokenizer = AutoTokenizer.from_pretrained(text_model_name_or_path)
-
-    # freeze all parameters except the connector
-    for name, param in model.named_parameters():
-        if "mlp_connector" not in name:
-            param.requires_grad = False
-        else:
-            param.requires_grad = True
-    
-    # if hasattr(model.text_model.model, "layers"):
-    #     last_two_layers = model.text_model.model.layers[-2:]
-    #     for layer in last_two_layers:
-    #         for param in layer.parameters():
-    #             param.requires_grad = True
-
-    # for name, param in model.text_model.named_parameters():
-    #    print(f"{name}: {param.requires_grad}")
-
-    return model, tokenizer
+from datasets import load_from_disk
 
 def analyze_model(model, model_name):
     def sizeof_fmt(num, suffix='B'):
@@ -68,8 +44,9 @@ def analyze_model(model, model_name):
     print(f"number of {model_name} total params:{total_params}({sizeof_fmt(total_params)})")
     print(f"number of {model_name} total trainable params:{total_trainable_params}({sizeof_fmt(total_trainable_params)})")
 
-def main(args=None):
 
+
+def main(args):
     ipg_handler = InitProcessGroupKwargs(timeout=timedelta(seconds=5400))
     accelerator = Accelerator(kwargs_handlers=[ipg_handler])
     logging.basicConfig(
@@ -77,29 +54,36 @@ def main(args=None):
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO
     )
-    
+
     set_seed(42)
 
     save_path = args.output_dir
-    model, tokenizer = init_model(HybridLlavaConfig())
+    dtype = torch.bfloat16
+    model_path = '/root/hybridGLAandNSA/ckpts_pretrain_llava/epoch_0'
+    config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
+    model = HybridVisionModel.from_pretrained(model_path, config=config, torch_dtype=dtype)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
     
-    
+    for name, param in model.named_parameters():
+        if "vision_model" not in name:
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+
     if accelerator.is_main_process:
-        model.save_pretrained(save_path)
-        tokenizer.save_pretrained(save_path)
-        print(f"Model and tokenizer saved to {save_path}")
         print(model.config)
         analyze_model(model, "llava")
         analyze_model(model.text_model, "llava text model")
-        analyze_model(model.vision_model, "llava vision model") 
-    
+        analyze_model(model.vision_model, "llava vision model")
+
+    ds_mine = load_from_disk(args.hfdataset_path)
+
     train_ds = VLMDataset(
         tokenizer=tokenizer,
-        jsonl_path=args.data_path,
-        images_path=args.images_path,
+        hf_dataset=ds_mine,
         preprocess=model.processor,
         image_size=model.config.vision_config.image_size,
-        max_length=1024,
+        max_length=2048,
         image_special_token=model.config.image_special_token,
     )
     train_loader = DataLoader(
@@ -118,8 +102,7 @@ def main(args=None):
 
     num_update_steps_per_epoch = math.ceil(len(train_loader) / args.gradient_accumulation_steps)
     max_steps = args.epochs * num_update_steps_per_epoch
-    # overrode_max_train_steps = True
-
+    
     lr_scheduler = get_scheduler(
         args.lr_scheduler_type,
         optimizer,
@@ -130,7 +113,7 @@ def main(args=None):
     train_loader, model, optimizer, lr_scheduler = accelerator.prepare(
         train_loader, model, optimizer, lr_scheduler
     )
-    
+
     completed_steps = 0
     loss_fct = nn.CrossEntropyLoss(reduction="none")
     
@@ -142,10 +125,7 @@ def main(args=None):
         print(f"Learning rate: {args.learning_rate}")
         print(f"Warmup steps: {args.warmup_steps}")
     
-    accelerator.wait_for_everyone()
-
     for epoch in range(args.epochs):
-        
         for step, (X, Y, loss_mask, pixel_tensors) in enumerate(train_loader):
             # logger.info(f"epoch {epoch} step {step} device {accelerator.device} start")
             X = X.to(accelerator.device)
@@ -205,11 +185,7 @@ def main(args=None):
             )
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(output_dir)
-
     pass
-
-
-
 
 
 
@@ -217,18 +193,17 @@ def main(args=None):
 import argparse    
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Hybrid LLava Pretrain")
-    parser.add_argument("--output_dir", type=str, default="/root/hybridGLAandNSA/ckpts_pretrain_llava")
-    parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--learning_rate", type=float, default=5e-4)
+    parser = argparse.ArgumentParser(description="Hybrid LLava SFT")
+    parser.add_argument("--output_dir", type=str, default="/root/hybridGLAandNSA/ckpts_sft_llava")
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--learning_rate", type=float, default=2e-5)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--data_path", type=str, default="/root/LLaVA-CC3M-Pretrain-595K/chat.json")
-    parser.add_argument("--images_path", type=str, default="/root/LLaVA-CC3M-Pretrain-595K/images")
+    parser.add_argument("--hfdataset_path", type=str, default="/root/hybridGLAandNSA/llava-mixed-dataset")
     parser.add_argument("--log_interval", type=int, default=10)
-    parser.add_argument("--save_interval", type=int, default=2500)
-    parser.add_argument("--warmup_steps", type=int, default=500)
+    parser.add_argument("--save_interval", type=int, default=3000)
+    parser.add_argument("--warmup_steps", type=int, default=750)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     args = parser.parse_args()

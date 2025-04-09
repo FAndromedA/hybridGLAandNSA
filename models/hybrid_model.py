@@ -269,7 +269,7 @@ class HybridForCausalLM(MyPreTrainedModel, GenerationMixin):
     _tied_weights_keys = ['lm_head.weight']
 
     def __init__(self, config, **kwargs):
-        super().__init__(config)
+        super().__init__(config, **kwargs)
         self.model = HybridModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)

@@ -12,9 +12,8 @@
             "module": "accelerate.commands.launch",  // 指定加速库入口
             "args": [
                 "--multi_gpu",
-                "--gpu_ids=3,0,1,2",
-                "training/train_dpo.py",  // 训练脚本路径
-                "yamls/train_dpo.yaml"
+                "--gpu_ids=1,0",
+                "training/llava_pretrain.py",  // 训练脚本路径
             ],
             "console": "integratedTerminal",
             "justMyCode": false  // 允许调试第三方库

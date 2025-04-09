@@ -22,15 +22,24 @@ from PIL import Image
 from models.Llava_model import HybridVisionModel
 
 class VLMDataset(Dataset):
-    def __init__(self, jsonl_path, images_path, tokenizer, preprocess=None, 
-                 max_length=1024, image_special_token='@' * 196):
+    def __init__(self, tokenizer, jsonl_path=None, images_path=None, hf_dataset=None, preprocess=None,
+                 image_size=224, max_length=1024, image_special_token='<|reserved_special_token_1|>' * 256):
         super().__init__()
-        self.samples = self.load_data(jsonl_path)
-        self.images_path = images_path
+        
+        assert hf_dataset is not None or (jsonl_path and images_path), \
+            "Either hf_dataset or (jsonl_path + images_path) must be provided."
+
+        if hf_dataset is not None:
+            self.samples = hf_dataset
+            self.from_hf = True
+        else:
+            self.samples = self.load_data(jsonl_path)
+            self.images_path = images_path
 
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.preprocess = preprocess
+        self.image_size = image_size
         self.image_special_token = image_special_token
         self.bos_id = tokenizer('<|start_header_id|>assistant<|end_header_id|>\n\n', add_special_tokens=False).input_ids
         self.eos_id = tokenizer('<|eot_id|>', add_special_tokens=False).input_ids
@@ -53,7 +62,10 @@ class VLMDataset(Dataset):
         messages = []
         for i, turn in enumerate(conversations):
             role = 'user' if i % 2 == 0 else 'assistant'
-            messages.append({'role': role, "content": turn['value'].replace('<image>', self.image_special_token)})
+            if self.from_hf:
+                messages.append({'role': role, "content": turn['content'].replace('<image>', self.image_special_token)})
+            else:
+                messages.append({'role': role, "content": turn['value'].replace('<image>', self.image_special_token)})
             # 生成 image 占位符
         return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     
@@ -77,8 +89,9 @@ class VLMDataset(Dataset):
 
     def __getitem__(self, index: int):
         sample = self.samples[index]
-        image_paths = sample['image']
-        prompt = self._create_chat_template(sample['conversations'])
+        
+        conversations = sample["messages"] if self.from_hf else sample["conversations"]
+        prompt = self._create_chat_template(conversations)
         input_ids = self.tokenizer(prompt).input_ids[:self.max_length]
         input_ids += [self.tokenizer.pad_token_id] * (self.max_length - len(input_ids))
         loss_mask = self._generate_loss_mask(input_ids)
@@ -91,18 +104,39 @@ class VLMDataset(Dataset):
         Y = torch.tensor(input_ids[1:], dtype=torch.long)
         loss_mask = torch.tensor(loss_mask[1:], dtype=torch.long)
 
+        image_list = []
         image_tensors = []
-        for image_name in image_paths.split(','):
-            image_name = image_name.strip()
-            image = Image.open(f"{self.images_path}/{image_name}")
+
+        if self.from_hf:
+            images = sample["images"] # typically list of PIL.Image
+            if isinstance(images, list):
+                image_list = images
+            else:
+                image_list = [images]
+        else:
+            image_paths = sample["image"]
+            for image_name in sample["image"].split(','):
+                image_path = f"{self.images_path}/{image_name.strip()}"
+                image_list.append(Image.open(image_path))
+
+        for image in image_list:
             if image.mode in ['RGBA', 'LA']:
                 image = image.convert("RGB")
             if self.preprocess:
-                image_tensors.append(self.preprocess(image, return_tensors="pt")['pixel_values'])
+                image_tensors.append(
+                    self.preprocess(
+                        images=image,
+                        return_tensors="pt",
+                        do_resize=True,
+                        size={
+                            "height": self.image_size, #224
+                            "width": self.image_size, #224
+                        },
+                    )['pixel_values'])
             else:
                 raise ValueError("Preprocess function is not defined.")
-        image_tensors = torch.stack(image_tensors, dim=0) 
-
+        
+        image_tensors = torch.stack(image_tensors, dim=0) # dim0 is picture number
         return X, Y, loss_mask, image_tensors
 
 if __name__ == "__main__":

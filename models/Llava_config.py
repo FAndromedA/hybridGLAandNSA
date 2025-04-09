@@ -8,8 +8,8 @@ class HybridLlavaConfig(PretrainedConfig):
 
     def __init__(
             self,
-            image_special_token: str = '@' * 196,
-            image_ids: List = [34] * 196,
+            image_special_token: str = '<|reserved_special_token_1|>' * 256,
+            image_ids: List = [128003] * 256,
             **kwargs):
         self.image_special_token = image_special_token
         self.image_ids = image_ids

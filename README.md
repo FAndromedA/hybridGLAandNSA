@@ -16,8 +16,9 @@ the nohup.out log start from line: 139795
 
 
 train llava with :
-
 setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_pretrain.py &
+
+the nohup.out log start from line: 6990
 
 ```
 accelerate config                                                                                            

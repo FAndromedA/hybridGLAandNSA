@@ -4,12 +4,16 @@ import torch.nn as nn
 from transformers import (
     AutoModel,
     PreTrainedModel,
+    GenerationMixin,
     AutoModelForCausalLM,
     SiglipImageProcessor,
     SiglipVisionModel,
 )
 
+from transformers.utils.deprecation import deprecate_kwarg
+from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from fla.models.utils import Cache
 from .Llava_config import HybridLlavaConfig
 
 class MlpConnector(nn.Module):
@@ -33,15 +37,17 @@ class MlpConnector(nn.Module):
     def forward(self, x):
         return self.model(x)
     
-class HybridVisionModel(PreTrainedModel):
+class HybridVisionModel(PreTrainedModel, GenerationMixin):
     config_class = HybridLlavaConfig
 
     def __init__(self, config: HybridLlavaConfig):
         super().__init__(config)
         self.config = config
-        self.vision_model = SiglipVisionModel.from_pretrained("google/siglip2-base-patch16-224")
+        # patch14-224 image token len = 256,  patch16-224 image token len = 196
+        self.vision_model = SiglipVisionModel.from_pretrained("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
+        self.config.vision_config = self.vision_model.config
         self.text_model = AutoModelForCausalLM.from_config(self.config.text_config)
-        self.processor = SiglipImageProcessor().from_pretrained("google/siglip2-base-patch16-224")
+        self.processor = SiglipImageProcessor().from_pretrained("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
         self.mlp_connector = MlpConnector(
             image_size=self.config.vision_config.hidden_size,
             hidden_size=self.config.vision_config.hidden_size * 4,
@@ -53,6 +59,12 @@ class HybridVisionModel(PreTrainedModel):
         for param in self.vision_model.parameters():
             param.requires_grad = False
     
+    def tie_weights(self):
+        super().tie_weights()  # 如果没有这个函数，我们嵌套的子模型 HybridForCausalLM 没法正确的 from_pretrained 初始化
+        # 提示 text_model 的 lm_head 没在checkpoint 里，而实际其只是和 text_model 的 embedding 权重共享
+        if hasattr(self.text_model, "tie_weights"):
+            self.text_model.tie_weights()
+
     @property
     def device(self):
         return self.text_model.device
@@ -61,7 +73,7 @@ class HybridVisionModel(PreTrainedModel):
         if image.mode in ['RGBA', 'LA']:
             image = image.convert("RGB")
         image = self.processor(
-            image = image,
+            images = image,
             return_tensors="pt",
             do_resize=True,
             size={
@@ -69,12 +81,16 @@ class HybridVisionModel(PreTrainedModel):
                 "width": 224, #self.config.vision_config.image_size
             },
         )["pixel_values"].to(device=self.vision_model.device, dtype=self.vision_model.dtype)
+        return image
 
     def get_image_embeddings(self, image_tensor):
         with torch.no_grad():
             outputs = self.vision_model(pixel_values=image_tensor)
-        image_embeds = outputs.last_hidden_state[:, 1:, :].squeeze() # remove cls token
-        # # if bs = 1, remove batch dim, [bs, 196, 768] -> [196, 768]
+        # image_embeds = outputs.last_hidden_state[:, 1:, :].squeeze() # remove cls token for clip
+        image_embeds = outputs.last_hidden_state.squeeze() # siglip has no cls token
+        
+        # # if bs = 1, remove batch dim, [bs, 256, 768] -> [256, 768]
+        # print(f"image_embeds.shape: {image_embeds.shape}")
         return image_embeds
         
     def count_vision_proj(self, tokens, inputs_embeds, vision_proj=None, seqlen=4096):
@@ -93,12 +109,12 @@ class HybridVisionModel(PreTrainedModel):
             } or None
 
         image_indices = find_image_indices(tokens, self.config.image_ids)
-        
+        # print(f"image_indices: {image_indices}") #######
         if not image_indices:
             return inputs_embeds
         
         if len(vision_proj.shape) == 3:
-            vision_proj = vision_proj.unsqueeze(0) # [1, num_images, 196, 768]
+            vision_proj = vision_proj.unsqueeze(0) # [1, num_images, 256, 768]
 
         modified_inputs_embeds = inputs_embeds.clone()
         img_idx = 0
@@ -109,6 +125,8 @@ class HybridVisionModel(PreTrainedModel):
                     img_idx += 1
                 else:
                     break
+        # print(f"inputs_embeds.shape: {inputs_embeds.shape}, vision_proj.shape: {vision_proj.shape}, modified_inputs_embeds.shape: {modified_inputs_embeds.shape}")
+        # print(f"inputs_embeds: {inputs_embeds},\n vision_proj: {vision_proj},\n modified_inputs_embeds: {modified_inputs_embeds}")
         return modified_inputs_embeds
         
     def forward(
@@ -140,10 +158,10 @@ class HybridVisionModel(PreTrainedModel):
                 batch_size, img_num, channel, height, width = pixel_values.shape
                 stack_dim = 1 if batch_size > 1 else 0 # if batch size > 1, stack along dim 1, else stack along dim 0
                 vision_tensors = torch.stack(
-                    [self.get_image_embeddings(pixel_values[:, i, :, :, :]) # [bs, 196, 768] if bs > 1, else [196, 768]
+                    [self.get_image_embeddings(pixel_values[:, i, :, :, :]) # [bs, 256, 768] if bs > 1, else [256, 768]
                      for i in range(img_num)],
                     dim=stack_dim
-                ) # [bs, num_images, 196, 768] if bs > 1, else [num_images, 196, 768]
+                ) # [bs, num_images, 256, 768] if bs > 1, else [num_images, 256, 768]
             
             if vision_tensors is not None:
                 vision_proj = self.mlp_connector(vision_tensors)
@@ -166,7 +184,59 @@ class HybridVisionModel(PreTrainedModel):
             return_dict=return_dict,
             logits_to_keep=logits_to_keep,
         )
-                
-        return outputs
+        # print(outputs)
+        return CausalLMOutputWithPast(
+            loss=outputs.loss,
+            logits=outputs.logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
+    def generate(self, *args, **kwargs):
+        try:
+            return super().generate(*args, **kwargs)
+        except AttributeError as exception:
+            if 'past_key_values' in str(exception):
+                raise AttributeError(
+                    f"You tried to call `generate` with a decoding strategy that manipulates `past_key_values`, "
+                    f"which is not supported for {self.__class__.__name__}. "
+                    f"Try another generation strategy instead. "
+                    f"For the available generation strategies, check this doc: "
+                    f"https://huggingface.co/docs/transformers/en/generation_strategies#decoding-strategies"
+                )
+            else:
+                raise exception
+        
+    @deprecate_kwarg("num_logits_to_keep", version="4.50", new_name="logits_to_keep")
+    def prepare_inputs_for_generation(
+        self,
+        input_ids: torch.LongTensor = None,
+        pixel_values: torch.FloatTensor = None,
+        images: List = None,
+        past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        use_cache: bool = True,
+        logits_to_keep: Optional[int] = None,
+        **kwargs
+    ):
+        if past_key_values is not None and len(past_key_values) > 0:
+            input_ids = input_ids[:, -1:] # Keep only the last token for the incremental forward pass
+        if inputs_embeds is not None and len(past_key_values) == 0:
+            model_inputs = {'inputs_embeds': inputs_embeds}
+        else:
+            model_inputs = {'input_ids': input_ids.contiguous()} # contiguous() to ensure that the input is stored in a new chunk of memory
+        
+        if logits_to_keep is not None:
+            model_inputs['logits_to_keep'] = logits_to_keep
+
+        model_inputs.update({
+            'past_key_values': past_key_values,
+            'use_cache': use_cache,
+            'attention_mask': attention_mask,
+            'images': images,
+            'pixel_values': pixel_values,
+        })
+        return model_inputs
 
