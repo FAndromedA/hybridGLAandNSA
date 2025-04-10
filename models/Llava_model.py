@@ -144,6 +144,8 @@ class HybridVisionModel(PreTrainedModel, GenerationMixin):
         return_dict: Optional[bool] = None, 
         logits_to_keep: Optional[int] = 0,
     ):
+        vision_proj = None
+
         if inputs_embeds is None:
             inputs_embeds = self.text_model.get_input_embeddings()(input_ids)
         
@@ -185,6 +187,12 @@ class HybridVisionModel(PreTrainedModel, GenerationMixin):
             logits_to_keep=logits_to_keep,
         )
         # print(outputs)
+        logits_to_return = outputs.logits
+        if self.training and vision_proj is not None:
+        #    print("@")
+            logits_to_return += vision_proj.mean() * 0 # 这个操作是为了避免有纯文本输入时，梯度计算图没有 vision_model，导致通信超时
+        # else:
+        #     print(f"!self.training: {self.training}, vision_proj: {vision_proj}")
         return CausalLMOutputWithPast(
             loss=outputs.loss,
             logits=outputs.logits,

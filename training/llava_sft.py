@@ -61,9 +61,10 @@ def main(args):
     dtype = torch.bfloat16
     model_path = '/root/hybridGLAandNSA/ckpts_pretrain_llava/epoch_0'
     config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
-    model = HybridVisionModel.from_pretrained(model_path, config=config, torch_dtype=dtype)
+    model = HybridVisionModel.from_pretrained(model_path, config=config, torch_dtype=dtype).train()
     tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-    
+    tokenizer.model_max_length = 3584
+
     for name, param in model.named_parameters():
         if "vision_model" not in name:
             param.requires_grad = True
@@ -83,8 +84,10 @@ def main(args):
         hf_dataset=ds_mine,
         preprocess=model.processor,
         image_size=model.config.vision_config.image_size,
-        max_length=2048,
+        max_length=3584,
         image_special_token=model.config.image_special_token,
+        start_of_image_token=model.config.start_of_image_token,
+        end_of_image_token=model.config.end_of_image_token,
     )
     train_loader = DataLoader(
         train_ds,
@@ -109,7 +112,6 @@ def main(args):
         num_warmup_steps=args.warmup_steps,
         num_training_steps=max_steps,
     )
-
     train_loader, model, optimizer, lr_scheduler = accelerator.prepare(
         train_loader, model, optimizer, lr_scheduler
     )
@@ -126,17 +128,20 @@ def main(args):
         print(f"Warmup steps: {args.warmup_steps}")
     
     for epoch in range(args.epochs):
+        # print(f"epoch {epoch} device {accelerator.device} start")
         for step, (X, Y, loss_mask, pixel_tensors) in enumerate(train_loader):
-            # logger.info(f"epoch {epoch} step {step} device {accelerator.device} start")
+            # print(f"epoch {epoch} step {step} device {accelerator.device} start")
             X = X.to(accelerator.device)
             Y = Y.to(accelerator.device)
             loss_mask = loss_mask.to(accelerator.device)
             pixel_tensors = pixel_tensors.to(accelerator.device)
             
+            # print(f"epoch {epoch} step {step} device {accelerator.device} get outputs start")
             outputs = model(
                 input_ids=X,
                 pixel_values=pixel_tensors
             )
+            # print(f"epoch {epoch} step {step} device {accelerator.device} get outputs end")
             logits = outputs.logits
             loss = loss_fct(
                 logits.view(-1, logits.size(-1)), 
@@ -146,13 +151,15 @@ def main(args):
             loss = (loss * loss_mask).sum() / loss_mask.sum()
 
             loss = loss / args.gradient_accumulation_steps
+            # print(f"epoch {epoch} step {step} device {accelerator.device} calc loss end, loss shape: {loss.shape}, loss = {loss.item()}")
             accelerator.backward(loss)
 
             if (step > 0 and step % args.gradient_accumulation_steps == 0) or step == len(train_loader) - 1:
+                # print(f"epoch {epoch} step {step} device {accelerator.device} step start")
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
-
+                # print(f"epoch {epoch} step {step} device {accelerator.device} step end")
                 completed_steps += 1
                 
             if accelerator.is_main_process and step % args.log_interval == 0:
@@ -173,7 +180,7 @@ def main(args):
                     tokenizer.save_pretrained(output_dir)
                 accelerator.save_state(output_dir)
 
-            # logger.info(f"epoch {epoch} step {step} device {accelerator.device} end")
+            # print(f"epoch {epoch} step {step} device {accelerator.device} end")
         if args.output_dir is not None:
             accelerator.wait_for_everyone()
             output_dir = f"epoch_{epoch}"
@@ -185,6 +192,7 @@ def main(args):
             )
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(output_dir)
+    print(f"max len meet: {train_ds.max_len_meet}")
     pass
 
 
@@ -196,14 +204,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Hybrid LLava SFT")
     parser.add_argument("--output_dir", type=str, default="/root/hybridGLAandNSA/ckpts_sft_llava")
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--learning_rate", type=float, default=2e-5)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--hfdataset_path", type=str, default="/root/hybridGLAandNSA/llava-mixed-dataset")
+    parser.add_argument("--hfdataset_path", type=str, default="/root/hybridGLAandNSA/llava-mixed-dataset2")
     parser.add_argument("--log_interval", type=int, default=10)
-    parser.add_argument("--save_interval", type=int, default=3000)
-    parser.add_argument("--warmup_steps", type=int, default=750)
+    parser.add_argument("--save_interval", type=int, default=5000)
+    parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     args = parser.parse_args()

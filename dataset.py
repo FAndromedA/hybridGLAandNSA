@@ -20,10 +20,13 @@ class TextDataset(Dataset):
 import json
 from PIL import Image
 from models.Llava_model import HybridVisionModel
+from PIL import PngImagePlugin
+PngImagePlugin.MAX_TEXT_CHUNK = 1024 * 1024 * 10 # 10MB
 
 class VLMDataset(Dataset):
     def __init__(self, tokenizer, jsonl_path=None, images_path=None, hf_dataset=None, preprocess=None,
-                 image_size=224, max_length=1024, image_special_token='<|reserved_special_token_1|>' * 256):
+                 image_size=224, max_length=1024, image_special_token='<|reserved_special_token_1|>' * 256,
+                 start_of_image_token='<|reserved_special_token_2|>', end_of_image_token='<|reserved_special_token_3|>'):
         super().__init__()
         
         assert hf_dataset is not None or (jsonl_path and images_path), \
@@ -38,9 +41,12 @@ class VLMDataset(Dataset):
 
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.max_len_meet = 0
         self.preprocess = preprocess
         self.image_size = image_size
         self.image_special_token = image_special_token
+        self.start_of_image_token = start_of_image_token
+        self.end_of_image_token = end_of_image_token
         self.bos_id = tokenizer('<|start_header_id|>assistant<|end_header_id|>\n\n', add_special_tokens=False).input_ids
         self.eos_id = tokenizer('<|eot_id|>', add_special_tokens=False).input_ids
     
@@ -63,9 +69,9 @@ class VLMDataset(Dataset):
         for i, turn in enumerate(conversations):
             role = 'user' if i % 2 == 0 else 'assistant'
             if self.from_hf:
-                messages.append({'role': role, "content": turn['content'].replace('<image>', self.image_special_token)})
+                messages.append({'role': role, "content": turn['content'].replace('<image>', self.start_of_image_token + self.image_special_token + self.end_of_image_token)})
             else:
-                messages.append({'role': role, "content": turn['value'].replace('<image>', self.image_special_token)})
+                messages.append({'role': role, "content": turn['value'].replace('<image>', self.start_of_image_token + self.image_special_token + self.end_of_image_token)})
             # 生成 image 占位符
         return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     
@@ -92,6 +98,7 @@ class VLMDataset(Dataset):
         
         conversations = sample["messages"] if self.from_hf else sample["conversations"]
         prompt = self._create_chat_template(conversations)
+        self.max_len_meet = max(self.max_len_meet, len(prompt)) # used for debugging
         input_ids = self.tokenizer(prompt).input_ids[:self.max_length]
         input_ids += [self.tokenizer.pad_token_id] * (self.max_length - len(input_ids))
         loss_mask = self._generate_loss_mask(input_ids)
@@ -109,6 +116,8 @@ class VLMDataset(Dataset):
 
         if self.from_hf:
             images = sample["images"] # typically list of PIL.Image
+            if images == None: # cause the dataset we use is mixed by multi-modal data and pure text data
+                return X, Y, loss_mask, torch.zeros(1, 1, 3, self.image_size, self.image_size).to(X.device)
             if isinstance(images, list):
                 image_list = images
             else:

@@ -2,5 +2,5 @@
 **/ckpts*/
 **/data/
 nohup*.out
-**/llava-mixed-dataset/
+**/llava-mixed-dataset*/
 **/images/

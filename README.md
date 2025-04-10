@@ -20,6 +20,9 @@ setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_pretrain.py &
 
 the nohup.out log start from line: 6990
 
+train llava sft:
+TORCH_DISTRIBUTED_DEBUG=DETAIL setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_sft.py &
+
 ```
 accelerate config                                                                                            
 --------------------------------------------------------------------------------------------------------------------------------------------------In which compute environment are you running?                                                                                                     

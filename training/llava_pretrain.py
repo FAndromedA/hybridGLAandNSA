@@ -35,7 +35,7 @@ def init_model(model_config: HybridLlavaConfig):
     text_model_name_or_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587"
     model.text_model = AutoModelForCausalLM.from_pretrained(text_model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(text_model_name_or_path)
-
+    model.train()
     # freeze all parameters except the connector
     for name, param in model.named_parameters():
         if "mlp_connector" not in name:
@@ -101,6 +101,8 @@ def main(args=None):
         image_size=model.config.vision_config.image_size,
         max_length=1024,
         image_special_token=model.config.image_special_token,
+        start_of_image_token=model.config.start_of_image_token,
+        end_of_image_token=model.config.end_of_image_token,
     )
     train_loader = DataLoader(
         train_ds,
@@ -207,11 +209,6 @@ def main(args=None):
                 tokenizer.save_pretrained(output_dir)
 
     pass
-
-
-
-
-
 
 
 import argparse    

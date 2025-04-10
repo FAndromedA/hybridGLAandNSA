@@ -27,7 +27,7 @@ def extract_assistant_reply(output_text, use_template):
 
 if __name__ == '__main__':
 
-    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/step_3000'
+    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/epoch_2'
     dtype = torch.bfloat16
     
     test_config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         while True:
             print("============================================")
-            user_input = input("Please enter your input: ") # Provide a brief description of the given image
+            user_input = input("Please enter your input: ") # Provide a detail description of the given image
             # img_path = '/root/hybridGLAandNSA/eval/images/test_image2.jpg'
             images = None
             img_path = input("Please enter the image path: ")
@@ -65,7 +65,7 @@ if __name__ == '__main__':
                     continue
 
                 images = []
-                user_input = test_model.config.image_special_token + user_input
+                user_input = test_model.config.start_of_image_token + test_model.config.image_special_token + test_model.config.end_of_image_token + user_input
                 messages = [
                     {"role": "system", "content": "You are a helpful assistant named Nova, created by ZJH."},
                     {"role": "user", "content": user_input},
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             inputs = tokenizer(user_input, return_tensors="pt").to("cuda:0")
             # print(f"The input token to the model is: {inputs}")
             
-            outputs = test_model.generate(inputs.input_ids, images=images, max_length=1024, do_sample=True)
+            outputs = test_model.generate(inputs.input_ids, images=images, max_length=4096, do_sample=True)
             decoded_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
             # print(decoded_text)
             assistant_reply = extract_assistant_reply(decoded_text, use_template)
