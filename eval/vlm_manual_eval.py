@@ -2,9 +2,9 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.Llava_config import HybridLlavaConfig
-from models.Llava_model import HybridVisionModel
-from models.hybrid_model import HybridForCausalLM
+from my_models.Llava_config import HybridLlavaConfig
+from my_models.Llava_model import HybridVisionModel
+from my_models.hybrid_model import HybridForCausalLM
 
 import random
 import numpy as np
@@ -27,7 +27,7 @@ def extract_assistant_reply(output_text, use_template):
 
 if __name__ == '__main__':
 
-    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/epoch_2'
+    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/epoch_0'
     dtype = torch.bfloat16
     
     test_config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
@@ -47,6 +47,7 @@ if __name__ == '__main__':
         while True:
             print("============================================")
             user_input = input("Please enter your input: ") # Provide a detail description of the given image
+            # Generate a story based on the given image
             # img_path = '/root/hybridGLAandNSA/eval/images/test_image2.jpg'
             images = None
             img_path = input("Please enter the image path: ")

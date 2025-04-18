@@ -19,7 +19,7 @@ class TextDataset(Dataset):
 
 import json
 from PIL import Image
-from models.Llava_model import HybridVisionModel
+from my_models.Llava_model import HybridVisionModel
 from PIL import PngImagePlugin
 PngImagePlugin.MAX_TEXT_CHUNK = 1024 * 1024 * 10 # 10MB
 

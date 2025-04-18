@@ -24,9 +24,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, get_scheduler
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.hybrid_model import HybridForCausalLM
-from models.Llava_model import HybridVisionModel
-from models.Llava_config import HybridLlavaConfig
+from my_models.hybrid_model import HybridForCausalLM
+from my_models.Llava_model import HybridVisionModel
+from my_models.Llava_config import HybridLlavaConfig
 from dataset import VLMDataset
 from datasets import load_from_disk
 
@@ -63,7 +63,7 @@ def main(args):
     config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     model = HybridVisionModel.from_pretrained(model_path, config=config, torch_dtype=dtype).train()
     tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-    tokenizer.model_max_length = 3584
+    tokenizer.model_max_length = 3072
 
     for name, param in model.named_parameters():
         if "vision_model" not in name:
@@ -84,7 +84,7 @@ def main(args):
         hf_dataset=ds_mine,
         preprocess=model.processor,
         image_size=model.config.vision_config.image_size,
-        max_length=3584,
+        max_length=3072,
         image_special_token=model.config.image_special_token,
         start_of_image_token=model.config.start_of_image_token,
         end_of_image_token=model.config.end_of_image_token,
@@ -165,7 +165,7 @@ def main(args):
             if accelerator.is_main_process and step % args.log_interval == 0:
                 logger.info(f"epoch {epoch} step {step} / {len(train_loader)} loss: {loss:.5f} lr: {lr_scheduler.get_last_lr()[0]:.7f}") 
 
-            if completed_steps > 0 and completed_steps % args.save_interval == 0:
+            if (completed_steps > 0 and completed_steps % args.save_interval == 0) or completed_steps == 50: # save the first 50 steps just for test
                 accelerator.wait_for_everyone()
                 # save checkpoint
                 output_dir = f"step_{completed_steps}"
@@ -203,14 +203,14 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Hybrid LLava SFT")
     parser.add_argument("--output_dir", type=str, default="/root/hybridGLAandNSA/ckpts_sft_llava")
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=3)
-    parser.add_argument("--learning_rate", type=float, default=2e-5)
+    parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--hfdataset_path", type=str, default="/root/hybridGLAandNSA/llava-mixed-dataset2")
     parser.add_argument("--log_interval", type=int, default=10)
-    parser.add_argument("--save_interval", type=int, default=5000)
+    parser.add_argument("--save_interval", type=int, default=2500)
     parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)

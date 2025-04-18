@@ -26,8 +26,8 @@ from trl import SFTTrainer
 
 # 添加项目根目录到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from models.hybrid_config import HybridConfig
-from models.hybrid_model import HybridModel, HybridForCausalLM
+from my_models.hybrid_config import HybridConfig
+from my_models.hybrid_model import HybridModel, HybridForCausalLM
 
 import torch.distributed as dist
 from datetime import timedelta
@@ -141,6 +141,7 @@ def main():
         config=HybridConfig.from_pretrained(model_args.model_name_or_path),
         **model_kwargs,
     )
+    model.train()
     print(f"Model device: {model.device}")
 
     #####################

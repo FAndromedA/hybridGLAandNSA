@@ -1,9 +1,10 @@
 import sys
 import os
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.hybrid_config import HybridConfig
-from models.hybrid_model import HybridModel, HybridBlock, HybridForCausalLM
+from my_models.hybrid_config import HybridConfig
+from my_models.hybrid_model import HybridModel, HybridBlock, HybridForCausalLM
 
 import transformers
 from transformers import AutoModel, AutoTokenizer, AutoConfig, AutoModelForCausalLM
@@ -34,7 +35,8 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     test_num_parameters = test_model.num_parameters()
     for name, param in test_model.named_parameters():
-       print(f"{name}: {param.requires_grad}")
+       param.requires_grad = False
+       # print(f"{name}: {param.requires_grad}")
     print(f"The test model has {test_num_parameters} parameters.")
 
     use_template = input("Do you want to use the template? (1 for yes/0 for no): ")
@@ -57,11 +59,16 @@ if __name__ == "__main__":
             #<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nCutting Knowledge Date: December 2023\nToday Date: 07 Apr 2025\n\nYou are a helpful assistant named Nova, created by ZJH.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\ntell me a story<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n
             
             inputs = tokenizer(user_input, return_tensors="pt").to("cuda:0")
+            # print(f"The input tensor is: {inputs.input_ids}, shape: {inputs.input_ids.shape}")
+            start_time = time.time()
             outputs = test_model.generate(inputs.input_ids, max_length=1024, do_sample=True)
-            
+            end_time = time.time()
+
             decoded_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
             # print(decoded_text)
             assistant_reply = extract_assistant_reply(decoded_text, use_template)
+            print(f"Time taken for generation: {end_time - start_time:.2f} seconds, \
+                  speed: {(outputs[0].shape[0] - inputs.input_ids.shape[1]) / (end_time - start_time):.2f} tokens/sec")
             print(f"The test model generated: {assistant_reply}")
     
     # user_input = "Hello, can you tell me a joke?"

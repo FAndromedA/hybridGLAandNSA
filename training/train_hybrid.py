@@ -14,8 +14,8 @@ from torch.nn import functional as F
 # 添加项目根目录到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.hybrid_config import HybridConfig
-from models.hybrid_model import HybridModel, HybridBlock, HybridForCausalLM
+from my_models.hybrid_config import HybridConfig
+from my_models.hybrid_model import HybridModel, HybridBlock, HybridForCausalLM
 
 import transformers
 from transformers import get_scheduler

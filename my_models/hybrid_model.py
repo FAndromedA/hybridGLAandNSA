@@ -86,6 +86,7 @@ class HybridBlock(nn.Module):
         **kwargs: Unpack[Dict]
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         residual = hidden_states
+        # print(attention_mask.shape, attention_mask)
         hidden_states = self.attn_norm(hidden_states)
         hidden_states, attentions, past_key_values = self.attn(
             hidden_states=hidden_states,
@@ -95,6 +96,11 @@ class HybridBlock(nn.Module):
             output_attentions=output_attentions,
             **kwargs
         )
+        if torch.isnan(hidden_states).any():
+            print(f"in HybridBlock ⚠️ hidden_states after layer NaN:", torch.isnan(hidden_states).any().item(), 
+                  "hidden_states:", hidden_states, ", input:", residual, ", fuse_norm:", self.config.fuse_norm, ", hidden_state shape:", hidden_states.shape)
+            raise ValueError(f"hidden_states NaN after layer {self.layer_idx}. hidden_states: {hidden_states}, input: {residual}")
+        
         if self.config.fuse_norm:
             hidden_states, residual = self.mlp_norm(hidden_states, residual, True)
         else:
@@ -103,7 +109,6 @@ class HybridBlock(nn.Module):
             hidden_states = self.mlp_norm(hidden_states)
         hidden_states = self.mlp(hidden_states, **kwargs)
         hidden_states = residual + hidden_states
-
         outputs = (hidden_states, attentions, past_key_values)
 
         return outputs
@@ -201,7 +206,7 @@ class HybridModel(MyPreTrainedModel):
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         use_cache = use_cache if use_cache is not None else (self.config.use_cache if not self.training else False)
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
+        # print(f"self.training {self.training}, use_cache: {use_cache}, return_dict: {return_dict}")
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
         if input_ids is None and inputs_embeds is None:
@@ -210,7 +215,10 @@ class HybridModel(MyPreTrainedModel):
         if inputs_embeds is None:
             inputs_embeds = self.embeddings(input_ids)
         hidden_states = inputs_embeds
-
+        # if torch.isnan(hidden_states).any():
+        #     print("input_ids min/max:", input_ids.min(), input_ids.max(), "vocab_size:", self.embeddings.num_embeddings)
+        #     print("embeddings weight stats:", self.embeddings.weight.min(), self.embeddings.weight.max(), self.embeddings.weight.std())
+            
         if use_cache and not isinstance(past_key_values, Cache): # initialize past_key_values
             past_key_values = Cache.from_legacy_cache(past_key_values) 
 
@@ -222,10 +230,14 @@ class HybridModel(MyPreTrainedModel):
         
         all_hidden_states = () if output_hidden_states else None
         all_attns = () if output_attentions else None
+        idx = 0
         for layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
-
+            residual = hidden_states
+            if torch.isnan(hidden_states).any():
+                raise ValueError(f"hidden_states NaN before layer {idx}. hidden_states: {hidden_states}, input_ids: {input_ids}")
+            # print(f"in HybridModel ⚠️ hidden_states before layer {idx} NaN:", torch.isnan(hidden_states).any().item())
             if self.gradient_checkpointing and self.training:
                 hidden_states, attentions, past_key_values = self._gradient_checkpointing_func(
                     layer.__call__,
@@ -245,11 +257,17 @@ class HybridModel(MyPreTrainedModel):
                     output_attentions=output_attentions,
                     **kwargs
                 )
-            
+            # print(f"in HybridModel ⚠️ hidden_states after layer {idx} NaN:", torch.isnan(hidden_states).any().item())
+            if torch.isnan(hidden_states).any().item():
+                raise ValueError(f"hidden_states NaN after layer {idx}. hidden_states: {hidden_states}, input: {residual}")
+            idx += 1
+            # print("done layer idx:", idx)
             if output_attentions:
                 all_attns += (attentions,)
         
+        # print("in HybridModel ⚠️ hidden_states before norm NaN:", torch.isnan(hidden_states).any().item())
         hidden_states = self.norm(hidden_states)
+        # print("in HybridModel ⚠️ hidden_states after norm NaN:", torch.isnan(hidden_states).any().item())
         
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
@@ -295,6 +313,9 @@ class HybridForCausalLM(MyPreTrainedModel, GenerationMixin):
     def get_encoder(self):
         return self.model
     
+    def tie_weights(self):
+        super().tie_weights()
+
     def generate(self, *args, **kwargs):
         try:
             return super().generate(*args, **kwargs)
@@ -377,6 +398,11 @@ class HybridForCausalLM(MyPreTrainedModel, GenerationMixin):
         loss, logits = None, None
         if not fuse_linear_and_cross_entropy or labels is None:
             logits = self.lm_head(hidden_states if logits_to_keep is None else hidden_states[:, -logits_to_keep:]) # Keep only the last token for the incremental forward pass
+        # if logits is not None:
+        #     print("in HybridForCausalLM ⚠️ logits NaN:", torch.isnan(logits).any().item(),
+        #             " +Inf:", torch.isposinf(logits).any().item(),
+        #             " -Inf:", torch.isneginf(logits).any().item(), 
+        #             "logits:", logits, "hidden_states NaN", torch.isnan(hidden_states).any().item(), ", hidden_states:", hidden_states)
         if labels is not None:
             if getattr(self, 'criterion', None) is None:
                 if fuse_linear_and_cross_entropy:

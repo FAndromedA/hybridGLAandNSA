@@ -24,9 +24,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, get_scheduler
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.hybrid_model import HybridForCausalLM
-from models.Llava_model import HybridVisionModel
-from models.Llava_config import HybridLlavaConfig
+from my_models.hybrid_model import HybridForCausalLM
+from my_models.Llava_model import HybridVisionModel
+from my_models.Llava_config import HybridLlavaConfig
 from dataset import VLMDataset
 
 
@@ -160,6 +160,7 @@ def main(args=None):
                 pixel_values=pixel_tensors
             )
             logits = outputs.logits
+            logits = logits[..., :-1, :].contiguous()
             loss = loss_fct(
                 logits.view(-1, logits.size(-1)), 
                 Y.view(-1)

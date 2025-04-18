@@ -190,6 +190,7 @@ class HybridVisionModel(PreTrainedModel, GenerationMixin):
         logits_to_return = outputs.logits
         if self.training and vision_proj is not None:
         #    print("@")
+        # https://huggingface.co/Qwen/Qwen-VL-Chat/blob/main/modeling_qwen.py
             logits_to_return += vision_proj.mean() * 0 # 这个操作是为了避免有纯文本输入时，梯度计算图没有 vision_model，导致通信超时
         # else:
         #     print(f"!self.training: {self.training}, vision_proj: {vision_proj}")
