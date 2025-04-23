@@ -44,10 +44,10 @@ class HybridVisionModel(PreTrainedModel, GenerationMixin):
         super().__init__(config)
         self.config = config
         # patch14-224 image token len = 256,  patch16-224 image token len = 196
-        self.vision_model = SiglipVisionModel.from_pretrained("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
+        self.vision_model = SiglipVisionModel.from_pretrained("google/siglip2-so400m-patch14-384")#("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
         self.config.vision_config = self.vision_model.config
         self.text_model = AutoModelForCausalLM.from_config(self.config.text_config)
-        self.processor = SiglipImageProcessor().from_pretrained("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
+        self.processor = SiglipImageProcessor().from_pretrained("google/siglip2-so400m-patch14-384")#("google/siglip2-so400m-patch14-224")# "google/siglip2-base-patch16-224"
         self.mlp_connector = MlpConnector(
             image_size=self.config.vision_config.hidden_size,
             hidden_size=self.config.vision_config.hidden_size * 4,
@@ -72,13 +72,15 @@ class HybridVisionModel(PreTrainedModel, GenerationMixin):
     def image2tensor(self, image):
         if image.mode in ['RGBA', 'LA']:
             image = image.convert("RGB")
+        if image.mode not in ['RGB']:
+            image = image.convert("RGB")
         image = self.processor(
             images = image,
             return_tensors="pt",
             do_resize=True,
             size={
-                "height": 224, #self.config.vision_config.image_size,
-                "width": 224, #self.config.vision_config.image_size
+                "height": self.config.vision_config.image_size,
+                "width": self.config.vision_config.image_size,
             },
         )["pixel_values"].to(device=self.vision_model.device, dtype=self.vision_model.dtype)
         return image

@@ -26,7 +26,9 @@ def extract_assistant_reply(output_text, use_template):
 
 if __name__ == "__main__":
     # "/root/hybridGLAandNSA/ckpts_train_hybrid"
-    model_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587" # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
+    model_path = "/root/hybridGLAandNSA/ckpts_train_dpo/checkpoint-33342"
+    #"/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587" 
+    # "/root/Llama-3.2-1B-Instruct"# "/root/Sheared-LLaMA-1.3B-ShareGPT"
     dtype = torch.bfloat16
     test_config =  AutoConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     test_model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=dtype, local_files_only=True)
@@ -48,7 +50,8 @@ if __name__ == "__main__":
             break    
         # input_with_template = f"You are a helpful assistant. Write a response that appropriately completes the request.\n\n### Input:\n{user_input}\n\n### Response:"
         messages = [
-            {"role": "system", "content": "You are a helpful assistant named Nova, created by ZJH."},
+            {"role": "system", "content": "You are a helpful assistant."},
+            # {"role": "system", "content": "Please answer the question the user asked. For example:\"Question: What is the capital of France? Choices: (A) Paris, (B) London, (C) Berlin, (D) Madrid. Please choose the letter of the only correct answer.\" because the capital city of France is Paris, you should reply with:\"(A)\""},
             {"role": "user", "content": user_input},
         ]
         with torch.no_grad():

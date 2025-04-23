@@ -15,10 +15,15 @@ setsid nohup accelerate launch --gpu_ids=3,0,1,2 training/train_sft.py yamls/tra
 the nohup.out log start from line: 139795
 
 train the third stage(dpo) with: (do not use zero2 with offload, because: https://github.com/deepspeedai/DeepSpeed/issues/5241)
+(actually, we use stage 0 of deepspeed) 
+
 TORCH_DISTRIBUTED_DEBUG=DETAIL setsid nohup accelerate launch --gpu_ids=2,3,4,5 training/train_dpo.py yamls/train_dpo.yaml &
 
+evaluate language model with :
+accelerate launch --gpu_ids=5,4,6,7 lm_eval --model hf --model_args pretrained=/root/hybridGLAandNSA/ckpts_train_dpo/checkpoint-33342 --tasks hellaswag --output_path ./eval_out/hybrid --batch_size auto
 
-train llava with :
+
+pretrain llava with :
 setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_pretrain.py &
 
 the nohup.out log start from line: 6990
@@ -26,30 +31,3 @@ the nohup.out log start from line: 6990
 train llava sft:
 TORCH_DISTRIBUTED_DEBUG=DETAIL setsid nohup accelerate launch --gpu_ids=1,0,2,3 training/llava_sft.py &
 
-```
-accelerate config                                                                                            
---------------------------------------------------------------------------------------------------------------------------------------------------In which compute environment are you running?                                                                                                     
-This machine                                                                                                                                      
---------------------------------------------------------------------------------------------------------------------------------------------------Which type of machine are you using?                                                                                                              
-multi-GPU                                                                                                                                         
-How many different machines will you use (use more than 1 for multi-node training)? [1]: 1                                                        
-Should distributed operations be checked while running for errors? This can avoid timeout issues but will be slower. [yes/NO]: no                 
-Do you wish to optimize your script with torch dynamo?[yes/NO]:no                                                                                 
-Do you want to use DeepSpeed? [yes/NO]: yes                                                                                                       
-Do you want to specify a json file to a DeepSpeed config? [yes/NO]: no                                                                            
---------------------------------------------------------------------------------------------------------------------------------------------------What should be your DeepSpeed's ZeRO optimization stage?                                                                                          
-2                                                                                                                                                 
---------------------------------------------------------------------------------------------------------------------------------------------------Where to offload optimizer states?                                                                                                                
-cpu                                                                                                                                               
---------------------------------------------------------------------------------------------------------------------------------------------------Where to offload parameters?                                                                                                                      
-none                                                                                                                                              
-How many gradient accumulation steps you're passing in your script? [1]: 8                                                                        
-Do you want to use gradient clipping? [yes/NO]: yes                                                                                               
-What is the gradient clipping value? [1.0]: 1.0                                                                                                   
-Do you want to enable `deepspeed.zero.Init` when using ZeRO Stage-3 for constructing massive models? [yes/NO]: no
-Do you want to enable Mixture-of-Experts training (MoE)? [yes/NO]: no
-How many GPU(s) should be used for distributed training? [1]:3
---------------------------------------------------------------------------------------------------------------------------------------------------Do you wish to use mixed precision?
-bf16                                                                                                                                              
-accelerate configuration saved at /root/.cache/huggingface/accelerate/default_config.yaml
-```

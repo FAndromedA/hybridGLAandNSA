@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from my_models.Llava_config import HybridLlavaConfig
@@ -27,7 +28,7 @@ def extract_assistant_reply(output_text, use_template):
 
 if __name__ == '__main__':
 
-    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/epoch_0'
+    model_path = '/root/hybridGLAandNSA/ckpts_sft_llava/epoch_2'
     dtype = torch.bfloat16
     
     test_config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
@@ -45,9 +46,10 @@ if __name__ == '__main__':
 
     with torch.no_grad():
         while True:
-            print("============================================")
+            print("============================================") 
             user_input = input("Please enter your input: ") # Provide a detail description of the given image
-            # Generate a story based on the given image
+            # Please give me a story based on the given image before
+            # Question: Which of these states is farthest north? Please choose the letter of the Only correct Choice: (A) West Virginia, (B) Louisiana, (C) Arizona, (D) Oklahoma. 
             # img_path = '/root/hybridGLAandNSA/eval/images/test_image2.jpg'
             images = None
             img_path = input("Please enter the image path: ")
@@ -57,7 +59,8 @@ if __name__ == '__main__':
                 break
             if img_path.lower() == "none":
                 messages = [
-                    {"role": "system", "content": "You are a helpful assistant named Nova, created by ZJH."},
+                    # {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": "Please answer the question the user asked. For example:\"Question: What is the capital of France? Choices: (A) Paris, (B) London, (C) Berlin, (D) Madrid. Please choose the letter of the only correct answer.\" because the capital city of France is Paris, you should reply with:\"(A)\""},
                     {"role": "user", "content": user_input},
                 ]
             else: 
@@ -68,7 +71,8 @@ if __name__ == '__main__':
                 images = []
                 user_input = test_model.config.start_of_image_token + test_model.config.image_special_token + test_model.config.end_of_image_token + user_input
                 messages = [
-                    {"role": "system", "content": "You are a helpful assistant named Nova, created by ZJH."},
+                    # {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": "Please answer the question the user asked. For example:\"Question: What is the capital of France? Choices: (A) Paris, (B) London, (C) Berlin, (D) Madrid. Please choose the letter of the only correct answer.\" because the capital city of France is Paris, you should reply with:\"(A)\""},
                     {"role": "user", "content": user_input},
                 ]
                 image = Image.open(img_path)
@@ -79,13 +83,18 @@ if __name__ == '__main__':
                 messages, tokenize=False, add_generation_prompt=True)
             
             # print(f"The input to the model is: {repr(user_input)}")
-            inputs = tokenizer(user_input, return_tensors="pt").to("cuda:0")
+            inputs = tokenizer(user_input, return_tensors="pt").to("cuda")
             # print(f"The input token to the model is: {inputs}")
-            
+            start_time = time.time()
             outputs = test_model.generate(inputs.input_ids, images=images, max_length=4096, do_sample=True)
+            end_time = time.time()
+
             decoded_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
             # print(decoded_text)
             assistant_reply = extract_assistant_reply(decoded_text, use_template)
+
+            print(f"Time taken for generation: {end_time - start_time:.2f} seconds, \
+                  speed: {(outputs[0].shape[0] - inputs.input_ids.shape[1]) / (end_time - start_time):.2f} tokens/sec")
             print(f"The test model generated: {assistant_reply}")
 
     

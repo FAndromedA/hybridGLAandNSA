@@ -32,7 +32,7 @@ from dataset import VLMDataset
 
 def init_model(model_config: HybridLlavaConfig):
     model = HybridVisionModel(model_config)
-    text_model_name_or_path = "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587"
+    text_model_name_or_path = "/root/hybridGLAandNSA/ckpts_train_dpo" # "/root/hybridGLAandNSA/ckpts_train_sft/checkpoint-96587"
     model.text_model = AutoModelForCausalLM.from_pretrained(text_model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(text_model_name_or_path)
     model.train()
@@ -49,9 +49,13 @@ def init_model(model_config: HybridLlavaConfig):
     #         for param in layer.parameters():
     #             param.requires_grad = True
 
-    # for name, param in model.text_model.named_parameters():
-    #    print(f"{name}: {param.requires_grad}")
-
+    for name, param in model.vision_model.named_parameters():
+        if "head" not in name:
+            param.requires_grad = False
+        else:
+            param.requires_grad = True
+        print(f"{name}: {param.requires_grad}")
+    # exit(0)
     return model, tokenizer
 
 def analyze_model(model, model_name):
@@ -160,7 +164,6 @@ def main(args=None):
                 pixel_values=pixel_tensors
             )
             logits = outputs.logits
-            logits = logits[..., :-1, :].contiguous()
             loss = loss_fct(
                 logits.view(-1, logits.size(-1)), 
                 Y.view(-1)
@@ -225,8 +228,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, default="/root/LLaVA-CC3M-Pretrain-595K/chat.json")
     parser.add_argument("--images_path", type=str, default="/root/LLaVA-CC3M-Pretrain-595K/images")
     parser.add_argument("--log_interval", type=int, default=10)
-    parser.add_argument("--save_interval", type=int, default=2500)
-    parser.add_argument("--warmup_steps", type=int, default=500)
+    parser.add_argument("--save_interval", type=int, default=4000)
+    parser.add_argument("--warmup_steps", type=int, default=750)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     args = parser.parse_args()

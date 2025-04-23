@@ -59,7 +59,7 @@ def main(args):
 
     save_path = args.output_dir
     dtype = torch.bfloat16
-    model_path = '/root/hybridGLAandNSA/ckpts_pretrain_llava/epoch_0'
+    model_path = '/root/hybridGLAandNSA/ckpts_pretrain_llava/epoch_2'
     config =  HybridLlavaConfig.from_pretrained(model_path, local_files_only=True, torch_dtype=dtype)
     model = HybridVisionModel.from_pretrained(model_path, config=config, torch_dtype=dtype).train()
     tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
@@ -70,7 +70,13 @@ def main(args):
             param.requires_grad = True
         else:
             param.requires_grad = False
-
+    
+    for name, param in model.vision_model.named_parameters():
+        if "head" not in name:
+            param.requires_grad = False
+        else:
+            param.requires_grad = True
+    
     if accelerator.is_main_process:
         print(model.config)
         analyze_model(model, "llava")
@@ -203,14 +209,14 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Hybrid LLava SFT")
     parser.add_argument("--output_dir", type=str, default="/root/hybridGLAandNSA/ckpts_sft_llava")
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--hfdataset_path", type=str, default="/root/hybridGLAandNSA/llava-mixed-dataset2")
     parser.add_argument("--log_interval", type=int, default=10)
-    parser.add_argument("--save_interval", type=int, default=2500)
+    parser.add_argument("--save_interval", type=int, default=3000)
     parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)

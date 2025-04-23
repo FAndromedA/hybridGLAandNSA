@@ -38,6 +38,7 @@ class VLMDataset(Dataset):
         else:
             self.samples = self.load_data(jsonl_path)
             self.images_path = images_path
+            self.from_hf = False
 
         self.tokenizer = tokenizer
         self.max_length = max_length

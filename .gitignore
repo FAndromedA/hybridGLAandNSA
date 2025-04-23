@@ -4,3 +4,4 @@
 nohup*.out
 **/llava-mixed-dataset*/
 **/images/
+*output*
